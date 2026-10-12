@@ -1,0 +1,14 @@
+              precision    recall  f1-score   support
+
+      CatEye     0.9985    0.9894    0.9940      2083
+     CatFace     0.9990    1.0000    0.9995      1041
+    CatMouth     0.9488    0.9798    0.9641      1041
+     CatNose     0.9782    0.9472    0.9624      1041
+      DogEye     0.9869    0.9983    0.9926      1737
+     DogFace     0.9954    0.9988    0.9971       869
+    DogMouth     0.9977    0.9908    0.9942       868
+     DogNose     0.9977    0.9977    0.9977       869
+
+    accuracy                         0.9883      9549
+   macro avg     0.9878    0.9878    0.9877      9549
+weighted avg     0.9884    0.9883    0.9883      9549

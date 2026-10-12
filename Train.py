@@ -164,9 +164,7 @@ def main():
     classes = sorted(labels['class'].unique())           # official spellings, taken from the data
     labels['y'] = labels['class'].map({c: i for i, c in enumerate(classes)})
 
-    # Stratified: every class keeps the same proportion in train and val.
-    # NOTE: crops from the same animal photo can land on both sides (IDs are shuffled, so the
-    # source photo is unknown) -> validation accuracy may be slightly optimistic vs Kaggle.
+      # Stratified: every class keeps the same proportion in train and val.
     tr, va = train_test_split(labels, test_size=a.val_frac, stratify=labels['y'], random_state=a.seed)
     print(f'train={len(tr)}  val={len(va)}  classes={classes}')
 

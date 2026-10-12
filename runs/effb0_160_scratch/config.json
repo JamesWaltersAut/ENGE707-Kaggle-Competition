@@ -1,0 +1,17 @@
+{
+  "model": "efficientnet_b0",
+  "img_size": 160,
+  "epochs": 20,
+  "batch_size": 64,
+  "lr": 0.001,
+  "weight_decay": 0.05,
+  "label_smoothing": 0.1,
+  "val_frac": 0.15,
+  "patience": 5,
+  "workers": 4,
+  "seed": 42,
+  "no_amp": false,
+  "no_pretrained": true,
+  "limit": 0,
+  "run_name": "effb0_160_scratch"
+}

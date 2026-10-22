@@ -170,22 +170,23 @@ def main():
     if a.exclude or a.group_split:
         flags = pd.read_csv(ROOT / 'outputs' / 'quality_flags.csv', dtype={'image_id': str})
         labels = labels.merge(flags.drop(columns='class'), on='image_id')
-    if a.exclude:
-        drop = labels[a.exclude.split(',')].any(axis=1)    # True if the image has any of the listed flags
-        print(f'excluding {drop.sum()} flagged training images')
-        labels = labels[~drop]                             # test images are never removed
-
     if a.limit:
         labels = labels.sample(a.limit, random_state=a.seed)
 
     if a.group_split:
         # Visual duplicates share a phash: keep each group on one side so none leak into validation
         folds = StratifiedGroupKFold(n_splits=round(1 / a.val_frac), shuffle=True, random_state=a.seed)
-        tr_idx, va_idx = next(folds.split(labels, labels['y'], groups=labels['phash']))
+        tr_idx, va_idx = next(folds.split(labels, labels['y'], groups=labels['phash'].fillna(labels['image_id'])))   # no hash -> own group
         tr, va = labels.iloc[tr_idx], labels.iloc[va_idx]
     else:
         # Stratified: every class keeps the same proportion in train and val
         tr, va = train_test_split(labels, test_size=a.val_frac, stratify=labels['y'], random_state=a.seed)
+    if a.exclude:
+        # Drop flagged images from the TRAINING part only - validation stays untouched so runs stay comparable,
+        # and test images are never removed
+        drop = tr[a.exclude.split(',')].any(axis=1)        # True if the image has any of the listed flags
+        print(f'excluding {drop.sum()} flagged training images')
+        tr = tr[~drop]
     print(f'train={len(tr)}  val={len(va)}  classes={classes}')
     pd.concat([tr.assign(set='train'), va.assign(set='val')])[['image_id', 'class', 'set']] \
       .to_csv(out / 'split.csv', index=False)

@@ -8,9 +8,11 @@ Run from this folder with the .venv active:
     python train.py --limit 2000 --epochs 2      # quick smoke test (skips test predictions)
     python train.py                              # full run with defaults
     python train.py --model resnet18 --img-size 128 --run-name r18_128   # an alternative experiment
+    python train.py --exclude too_small,blurry --group-split            # Task 2 options (need outputs/quality_flags.csv)
 
 Each run writes to runs/<run-name>/:
     config.json           every setting used (reproducibility)
+    split.csv             which images went to train / val
     history.csv           per-epoch train/val loss + accuracy (learning curves)
     best.pt               weights from the epoch with the lowest validation loss
     val_report.txt        precision / recall / F1 per class
@@ -31,7 +33,7 @@ import torch
 import torch.nn as nn
 from PIL import Image
 from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold, train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as T
 from tqdm import tqdm
@@ -58,6 +60,8 @@ def get_args():
     p.add_argument('--no-amp', action='store_true', help='disable bfloat16 mixed precision')
     p.add_argument('--no-pretrained', action='store_true', help='train from random weights (comparison baseline)')
     p.add_argument('--limit', type=int, default=0, help='use only N training images (smoke test)')
+    p.add_argument('--exclude', default='', help='quality flags to drop, e.g. too_small,blurry')
+    p.add_argument('--group-split', action='store_true', help='keep duplicate images (same phash) on one side of the split')
     p.add_argument('--run-name', default=None)
     return p.parse_args()
 
@@ -159,14 +163,32 @@ def main():
 
     # ---- labels + split -------------------------------------------------
     labels = pd.read_csv(DATA_DIR / 'train_labels.csv', dtype={'image_id': str})  # keep leading zeros
+    classes = sorted(labels['class'].unique())           # official spellings, taken from the data
+    labels['y'] = labels['class'].map({c: i for i, c in enumerate(classes)})   # label encoding: class -> 0..7
+
+    # Optional Task 2 cleaning: flags come from the Task 1 notebook (cell 5h)
+    if a.exclude or a.group_split:
+        flags = pd.read_csv(ROOT / 'outputs' / 'quality_flags.csv', dtype={'image_id': str})
+        labels = labels.merge(flags.drop(columns='class'), on='image_id')
+    if a.exclude:
+        drop = labels[a.exclude.split(',')].any(axis=1)    # True if the image has any of the listed flags
+        print(f'excluding {drop.sum()} flagged training images')
+        labels = labels[~drop]                             # test images are never removed
+
     if a.limit:
         labels = labels.sample(a.limit, random_state=a.seed)
-    classes = sorted(labels['class'].unique())           # official spellings, taken from the data
-    labels['y'] = labels['class'].map({c: i for i, c in enumerate(classes)})
 
-      # Stratified: every class keeps the same proportion in train and val.
-    tr, va = train_test_split(labels, test_size=a.val_frac, stratify=labels['y'], random_state=a.seed)
+    if a.group_split:
+        # Visual duplicates share a phash: keep each group on one side so none leak into validation
+        folds = StratifiedGroupKFold(n_splits=round(1 / a.val_frac), shuffle=True, random_state=a.seed)
+        tr_idx, va_idx = next(folds.split(labels, labels['y'], groups=labels['phash']))
+        tr, va = labels.iloc[tr_idx], labels.iloc[va_idx]
+    else:
+        # Stratified: every class keeps the same proportion in train and val
+        tr, va = train_test_split(labels, test_size=a.val_frac, stratify=labels['y'], random_state=a.seed)
     print(f'train={len(tr)}  val={len(va)}  classes={classes}')
+    pd.concat([tr.assign(set='train'), va.assign(set='val')])[['image_id', 'class', 'set']] \
+      .to_csv(out / 'split.csv', index=False)
 
     # ---- model ------------------------------------------------------------
     # Transfer learning: ImageNet-pretrained backbone, new 8-way classification head.

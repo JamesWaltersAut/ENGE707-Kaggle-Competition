@@ -1,0 +1,19 @@
+{
+  "model": "efficientnet_b0",
+  "img_size": 160,
+  "epochs": 12,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "weight_decay": 0.05,
+  "label_smoothing": 0.1,
+  "val_frac": 0.15,
+  "patience": 3,
+  "workers": 4,
+  "seed": 42,
+  "no_amp": false,
+  "no_pretrained": false,
+  "limit": 0,
+  "exclude": "too_dark,too_bright,blurry,low_contrast",
+  "group_split": true,
+  "run_name": "group_bright_blur"
+}
